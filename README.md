@@ -1,0 +1,50 @@
+# stock_agent
+
+박두환 『실전 매매 마스터 클라스』 1~8장 방법론을 **종목 분석 에이전트의 의사결정 엔진**으로 통합한 도구.
+
+> **계산·판정은 코드, 시나리오 판단은 사람.**
+> 입력 = 워치리스트(사람이 선정) · 출력 = 종목별 `국면 판정 + 권장 액션 + 근거 + 경보`.
+> ⚠️ 분석 보조 도구이며 투자 권유·자동매매가 아니다. 신호는 확률이지 보장이 아니다.
+
+전체 설계는 [`에이전트. 통합 매매 전략 (1~8장).md`](./에이전트.%20통합%20매매%20전략%20(1~8장).md), 개발 가이드는 [`CLAUDE.md`](./CLAUDE.md) 참고.
+
+## 구조
+
+```
+src/stock_agent/
+  models.py            도메인 enum/dataclass (포지션·신호·액션·수급패턴·판정)
+  data/provider.py     pykrx 어댑터 (종목코드 -> OHLCV/수급). 계좌 불필요
+  indicators/          순수 pandas/numpy 지표
+    trend.py           SMA(20/60/120)·골든크로스·스윙 고저·Higher Low
+    candles.py         망치형/유성형/도지
+    rsi.py             RSI(Wilder) + 하락 다이버전스
+    volume.py          거래량 폭발·매물대(지지/저항)
+  engine/
+    stage3_position.py 단계3 차트 포지션 분류 (3-1~3-4)
+    stage4_signal.py   단계4 실행 신호 (4-1~4-4)
+    supply_demand.py   6장 수급 확증 (5패턴)
+    sell_rules.py      8장 매도 운영 + 전량매도 오버라이드
+    decide.py          오케스트레이션 -> Verdict 산출
+  mcp_server.py        MCP 서버 스텁
+```
+
+처리 순서: **게이트(사람) → 단계3 분류 → 단계4 신호 → 수급 확증 → 매도 운영**.
+
+## 개발
+
+```bash
+# 가상환경 + 의존성
+py -m venv .venv
+.venv/Scripts/python -m pip install -e ".[dev]"
+
+# 테스트 (네트워크 불필요 — 합성 데이터 사용)
+.venv/Scripts/python -m pytest -q
+
+# 실데이터로 분석하려면 pykrx 설치
+.venv/Scripts/python -m pip install -e ".[data]"
+```
+
+## 자동화 경계 (반드시 사람 입력 — 환각 금지)
+- 단계1 산업 성장성 / 단계2 독점력·내재가치 시나리오
+- 전량 매도 최종 실행 · 포지션 사이징 · 리밸런싱
+- 패턴 인식(삼각수렴·쐐기 등)은 LLM 보조 해석만, 단정 금지

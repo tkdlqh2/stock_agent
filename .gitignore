@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# venv
+.venv/
+venv/
+
+# 데이터 캐시
+*.parquet
+*.csv
+data_cache/
+
+# 환경/비밀 (인라인 주석 금지 — gitignore는 패턴 일부로 인식)
+.env
+*.local
+# .mcp.json: KRX_ID/KRX_PW 평문 포함 — 절대 커밋 금지
+.mcp.json
+
+# 개인 데이터(보유·워치리스트·브리핑·리포트) — 프레임워크만 공개
+portfolio.json
+watchlist.json
+briefs/
+reports/
+# 개인 포트폴리오 운용 원칙(보유 종목 포함)
+내 포트폴리오 운용 원칙.md
+
+# Claude Code / BMAD 툴링 (프로젝트 코드 아님)
+.claude/
+.agents/
+_bmad/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
