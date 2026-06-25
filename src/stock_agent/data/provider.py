@@ -188,3 +188,16 @@ def default_window(days: int = 400) -> tuple[str, str]:
     end = date.today()
     start = end - timedelta(days=int(days * 1.6))  # 휴장일 보정
     return start.isoformat(), end.isoformat()
+
+
+def fx_usdkrw() -> float | None:
+    """USD/KRW 환율(원화 평가용). 실패 시 None → 호출측이 환산 보류."""
+    try:
+        import yfinance
+
+        h = yfinance.Ticker("USDKRW=X").history(period="5d", auto_adjust=True)
+        if h is not None and len(h):
+            return float(h["Close"].iloc[-1])
+    except Exception:
+        pass
+    return None

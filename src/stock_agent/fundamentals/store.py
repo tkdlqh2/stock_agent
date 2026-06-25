@@ -35,18 +35,28 @@ def load_brief(ticker: str, base_dir: Path) -> FundamentalBrief | None:
     return FundamentalBrief.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
 
-def save_portfolio(holdings: list[dict], base_dir: Path) -> Path:
-    """holdings: [{"ticker": "091230", "market": "kr"}, ...]"""
+def save_portfolio(holdings: list[dict], base_dir: Path, *, cash_krw: float = 0,
+                   savings_krw: float = 0, usd_cash: float = 0) -> Path:
+    """holdings: [{"ticker","market","shares","bucket"}, ...] + 현금/적금(원화)."""
     path = base_dir / "portfolio.json"
-    path.write_text(json.dumps(holdings, ensure_ascii=False, indent=2), encoding="utf-8")
+    data = {"holdings": holdings, "cash_krw": cash_krw,
+            "savings_krw": savings_krw, "usd_cash": usd_cash}
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 
 
-def load_portfolio(base_dir: Path) -> list[dict]:
+def load_portfolio(base_dir: Path) -> dict:
+    """{holdings, cash_krw, savings_krw, usd_cash}로 정규화 반환(구 리스트 형식도 흡수)."""
     path = base_dir / "portfolio.json"
     if not path.exists():
-        return []
-    return json.loads(path.read_text(encoding="utf-8"))
+        return {"holdings": [], "cash_krw": 0, "savings_krw": 0, "usd_cash": 0}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, list):  # 구 형식(리스트) 호환
+        return {"holdings": data, "cash_krw": 0, "savings_krw": 0, "usd_cash": 0}
+    data.setdefault("holdings", [])
+    for k in ("cash_krw", "savings_krw", "usd_cash"):
+        data.setdefault(k, 0)
+    return data
 
 
 def save_watchlist(items: list[dict], base_dir: Path) -> Path:

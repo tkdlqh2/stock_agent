@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from .data.provider import PykrxProvider, YFinanceProvider, default_window
+from .data.provider import PykrxProvider, YFinanceProvider, default_window, fx_usdkrw
 from .engine.decide import decide
 from .models import Action
 from .fundamentals.brief import FundamentalBrief, render_brief
@@ -63,10 +63,12 @@ def analyze_holding(ticker: str, market: str, brief: FundamentalBrief | None,
 def build_report(base_dir: Path, today: date | None = None) -> str:
     """portfolio.json + briefs/ 캐시를 읽어 통합 리포트 마크다운 생성."""
     today = today or date.today()
-    holdings = load_portfolio(base_dir)
+    pf = load_portfolio(base_dir)
+    holdings = pf["holdings"]
     providers = _Providers()
+    fx = fx_usdkrw()  # USD/KRW (원화 평가용)
 
-    rows, details, stale = [], [], []
+    rows, details, stale, vals = [], [], [], []
     for h in holdings:
         tk, market = h["ticker"], h["market"]
         shares = h.get("shares")
@@ -76,6 +78,12 @@ def build_report(base_dir: Path, today: date | None = None) -> str:
         v = r["verdict"]
         d = v.to_dict()
         name = brief.name if brief else tk
+        # 원화 평가액(미국=USD×환율, 한국=원화)
+        krw = None
+        if shares and r["last_close"]:
+            native = shares * r["last_close"]
+            krw = native * fx if (market == "us" and fx) else (native if market == "kr" else None)
+        vals.append({"name": name, "tk": tk, "bucket": h.get("bucket", "기타"), "krw": krw})
         sp = d["supply_pattern"] if market == "kr" else "N/A"
         outlook = brief.sector_outlook.value if brief else "-"
         stale_mark = " ⏰갱신필요" if r["brief_stale"] else ""
@@ -104,6 +112,39 @@ def build_report(base_dir: Path, today: date | None = None) -> str:
             "| 자산 | 시장 | 수량 | 포지션 | 신호 | 액션 | 수급 | 전망 |",
             "|------|------|------|--------|------|------|------|------|", *rows, "",
             "## 보유 — 상세", "", *details]
+
+    # 보유 비중 (원화 평가) — 리밸런싱 밴드 점검용
+    total_hold = sum(x["krw"] for x in vals if x["krw"])
+    cash, savings = pf["cash_krw"], pf["savings_krw"]
+    usd_cash_krw = pf["usd_cash"] * (fx or 0)
+    safe = cash + savings + usd_cash_krw
+    total = total_hold + safe
+    if total > 0:
+        out += ["", "## 보유 비중 (원화 평가)", "",
+                (f"- 환율 USD/KRW: {fx:,.1f} · 평가일 {today}" if fx
+                 else "- ⚠️ 환율 조회 실패 — 미국 자산 원화 환산 보류"), "",
+                "| 자산 | 평가액(원) | 비중 |", "|------|-----------:|-----:|"]
+        for x in sorted(vals, key=lambda z: (z["krw"] or 0), reverse=True):
+            cell = f"{x['krw']:,.0f}" if x["krw"] else "—"
+            wt = f"{x['krw']/total*100:.1f}%" if x["krw"] else "—"
+            out.append(f"| {x['name']}({x['tk']}) | {cell} | {wt} |")
+        if cash:
+            out.append(f"| 현금 | {cash:,.0f} | {cash/total*100:.1f}% |")
+        if usd_cash_krw:
+            out.append(f"| USD 현금(매도대금) | {usd_cash_krw:,.0f} | {usd_cash_krw/total*100:.1f}% |")
+        if savings:
+            out.append(f"| 적금 | {savings:,.0f} | {savings/total*100:.1f}% |")
+        out.append(f"| **합계** | **{total:,.0f}** | **100%** |")
+        # 성격별 버킷 비중
+        buckets: dict[str, float] = {}
+        for x in vals:
+            if x["krw"]:
+                buckets[x["bucket"]] = buckets.get(x["bucket"], 0) + x["krw"]
+        if safe:
+            buckets["안전/유동성"] = buckets.get("안전/유동성", 0) + safe
+        out += ["", "**성격별 버킷 비중** (노트 목표: 성장35·배당35·실물16·안전14)", ""]
+        for b, val in sorted(buckets.items(), key=lambda z: z[1], reverse=True):
+            out.append(f"- {b}: **{val/total*100:.0f}%** ({val:,.0f}원)")
 
     # 워치리스트(미보유 매수 후보) — 진입 신호 감시
     watch = load_watchlist(base_dir)
