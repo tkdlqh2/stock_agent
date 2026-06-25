@@ -30,7 +30,7 @@ class TradeEntry:
     ticker: str
     name: str
     action: str                    # 매수/추격매수/일부매도(30%)/전량매도 등
-    rationale: str                 # 왜 — 필수(규율). 한 줄이라도.
+    rationale: str = ""            # 왜 — 규율상 채우는 게 원칙. 임포트 직후엔 비어있을 수 있음.
     shares: float | None = None    # 체결 수량(+매수/-매도는 부호 또는 action으로 구분)
     price: float | None = None     # 체결 단가(현지 통화)
     tag: str = TAG_ENTRY           # 쉼표/마침표/진입/리밸런싱

@@ -37,6 +37,7 @@ py -m venv .venv
 - `fundamentals/store.py` — 브리핑 캐시(`briefs/<ticker>.json`) + 보유(`portfolio.json`) + 워치리스트(`watchlist.json`) 영속화. **차트=라이브/매일, 펀더멘털=캐시/분기·월**의 주기 분리를 구현.
 - `report.py` — `build_report(base_dir)`: 보유(portfolio.json) 분석 + 워치리스트(watchlist.json) **매수 신호 감시**(액션이 매수/추격매수면 🟢진입검토) + briefs/ 캐시 + 라이브 차트 + 매매일지 최근내역 → 통합 마크다운. 브리핑 stale 시 '⏰갱신필요' 표시. CLI: `python -m stock_agent.report [base_dir]` → `reports/`에 저장.
 - `journal.py` — 매매 일지. `TradeEntry`·`log_trade()`(journal.json 기록 + 매매일지.md 렌더)·`journal_summary()`(8장 복기 지표: 종목별 누적 수량=복리, 쉼표/마침표 횟수). 태그: 진입/쉼표(부분매도)/마침표(전량매도)/리밸런싱. journal.json·매매일지.md는 개인 데이터(gitignore).
+- `journal_import.py` — 미래에셋 거래내역 CSV(cp949/utf-8 자동) → `TradeEntry` 임포트. **자동**: 날짜·종목(종목번호=티커)·수량·체결단가·수수료·세금·원화손익. **수동**(`enrich_entry`): 태그·근거·당시 국면(=사람 판단). 미래에셋은 API 없어 CSV가 현실적 경로(*.csv는 gitignore).
 - `mcp_server.py` — FastMCP 스텁(`analyze_ticker`/`get_ohlcv`/`get_supply`/`analyze_portfolio`). 캐시 위치는 `STOCK_AGENT_HOME`(없으면 프로젝트 루트).
 
 `decide()`의 수급 상태 3구분: `supply=None`→**N/A(미국 등)** / 빈 DataFrame→**미수신(예: KRX 로그인 없음)** / 데이터 있음→확증 판정. 셋 다 4-2/4-3은 보류로 강등하되 근거 메시지가 다르다.
