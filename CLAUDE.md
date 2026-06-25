@@ -35,7 +35,8 @@ py -m venv .venv
 - `data/provider.py` — `PykrxProvider`(한국, OHLCV+수급) / `YFinanceProvider`(미국 등 해외, OHLCV만 — **수급 N/A**). 둘 다 표준 스키마 `open/high/low/close/volume`(+`foreign/institution/individual`). pykrx `freq`는 `d/m/y`만이라 주봉은 일봉을 받아 로컬 리샘플. **개별주 수급**=`get_market_trading_value_by_date`(일자별 시계열), **ETF 수급**=`get_etf_trading_volume_and_value`(투자자별 기간합계 → 최근 ~35일 단일행, `_is_etf()`로 라우팅). 둘 다 KRX 로그인 필요.
 - `fundamentals/brief.py` — `FundamentalBrief`(섹터/테마/매크로 전망·주도주·상위구성·시나리오 훼손 후보 + 정량). **단계1·2 보조 리서치**: 출처·확신도·기준일 필수, **자동 매매 트리거 아님**. `asset_kind`(stock/etf/commodity)별 렌더. `review_cadence_days`(stock·etf=90/commodity=30) + `is_stale()`로 전망 갱신주기 관리. 정량 지표만 `to_fundamentals_hint()`로 게이트에 연결, `thesis_broken`/`target_reached`는 사람이 설정.
 - `fundamentals/store.py` — 브리핑 캐시(`briefs/<ticker>.json`) + 보유(`portfolio.json`) + 워치리스트(`watchlist.json`) 영속화. **차트=라이브/매일, 펀더멘털=캐시/분기·월**의 주기 분리를 구현.
-- `report.py` — `build_report(base_dir)`: 보유(portfolio.json) 분석 + 워치리스트(watchlist.json) **매수 신호 감시**(액션이 매수/추격매수면 🟢진입검토) + briefs/ 캐시 + 라이브 차트 → 통합 마크다운. 브리핑 stale 시 '⏰갱신필요' 표시. CLI: `python -m stock_agent.report [base_dir]` → `reports/`에 저장.
+- `report.py` — `build_report(base_dir)`: 보유(portfolio.json) 분석 + 워치리스트(watchlist.json) **매수 신호 감시**(액션이 매수/추격매수면 🟢진입검토) + briefs/ 캐시 + 라이브 차트 + 매매일지 최근내역 → 통합 마크다운. 브리핑 stale 시 '⏰갱신필요' 표시. CLI: `python -m stock_agent.report [base_dir]` → `reports/`에 저장.
+- `journal.py` — 매매 일지. `TradeEntry`·`log_trade()`(journal.json 기록 + 매매일지.md 렌더)·`journal_summary()`(8장 복기 지표: 종목별 누적 수량=복리, 쉼표/마침표 횟수). 태그: 진입/쉼표(부분매도)/마침표(전량매도)/리밸런싱. journal.json·매매일지.md는 개인 데이터(gitignore).
 - `mcp_server.py` — FastMCP 스텁(`analyze_ticker`/`get_ohlcv`/`get_supply`/`analyze_portfolio`). 캐시 위치는 `STOCK_AGENT_HOME`(없으면 프로젝트 루트).
 
 `decide()`의 수급 상태 3구분: `supply=None`→**N/A(미국 등)** / 빈 DataFrame→**미수신(예: KRX 로그인 없음)** / 데이터 있음→확증 판정. 셋 다 4-2/4-3은 보류로 강등하되 근거 메시지가 다르다.

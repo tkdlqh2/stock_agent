@@ -22,11 +22,13 @@ data_cache/
 # .mcp.json: KRX_ID/KRX_PW 평문 포함 — 절대 커밋 금지
 .mcp.json
 
-# 개인 데이터(보유·워치리스트·브리핑·리포트) — 프레임워크만 공개
+# 개인 데이터(보유·워치리스트·브리핑·리포트·매매일지) — 프레임워크만 공개
 portfolio.json
 watchlist.json
 briefs/
 reports/
+journal.json
+매매일지.md
 # 개인 포트폴리오 운용 원칙(보유 종목 포함)
 내 포트폴리오 운용 원칙.md
 

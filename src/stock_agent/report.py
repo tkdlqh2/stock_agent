@@ -126,6 +126,25 @@ def build_report(base_dir: Path, today: date | None = None) -> str:
         out += ["| 후보 | 시장 | 포지션 | 신호 | 액션 | 진입 | 근거 |",
                 "|------|------|--------|------|------|------|------|", *wrows]
 
+    # 매매 일지 — 최근 실행 내역 + 복리 지표(종목별 누적 수량)
+    from .journal import load_journal, journal_summary
+
+    entries = load_journal(base_dir)
+    if entries:
+        recent = sorted(entries, key=lambda e: e.date, reverse=True)[:6]
+        out += ["", "## 매매 일지 — 최근 내역", "",
+                "| 일자 | 태그 | 액션 | 종목 | 근거 |",
+                "|------|------|------|------|------|"]
+        for e in recent:
+            out.append(f"| {e.date} | {e.tag} | {e.action} | {e.name}({e.ticker}) | {e.rationale} |")
+        summ = journal_summary(base_dir)
+        if any(v["net_shares"] for v in summ.values()):
+            out += ["", "**복리 지표 — 종목별 누적 보유 수량**(사이클 대비 수량 증가 추적)", ""]
+            for tk, v in summ.items():
+                if v["net_shares"]:
+                    out.append(f"- {v['name']}({tk}): 누적 {v['net_shares']:,.0f}주 "
+                               f"(쉼표 {v['comma']}회·마침표 {v['period']}회)")
+
     return "\n".join(out)
 
 
