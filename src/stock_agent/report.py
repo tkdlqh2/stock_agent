@@ -69,6 +69,8 @@ def build_report(base_dir: Path, today: date | None = None) -> str:
     rows, details, stale = [], [], []
     for h in holdings:
         tk, market = h["ticker"], h["market"]
+        shares = h.get("shares")
+        qty = f"{shares:,.0f}주" if shares else "—"
         brief = load_brief(tk, base_dir)
         r = analyze_holding(tk, market, brief, providers, today)
         v = r["verdict"]
@@ -77,7 +79,7 @@ def build_report(base_dir: Path, today: date | None = None) -> str:
         sp = d["supply_pattern"] if market == "kr" else "N/A"
         outlook = brief.sector_outlook.value if brief else "-"
         stale_mark = " ⏰갱신필요" if r["brief_stale"] else ""
-        rows.append(f"| {name}({tk}) | {market.upper()} | {d['position']} | {d['signal']} | "
+        rows.append(f"| {name}({tk}) | {market.upper()} | {qty} | {d['position']} | {d['signal']} | "
                     f"{d['action']} | {sp} | {outlook}{stale_mark} |")
         if r["brief_stale"]:
             stale.append(f"{name}({tk}): 브리핑 {brief.as_of} 기준, {brief.review_cadence_days}일 경과 → 갱신 권장")
@@ -99,8 +101,8 @@ def build_report(base_dir: Path, today: date | None = None) -> str:
     if stale:
         out += ["> ⏰ **전망 갱신 필요**: " + " · ".join(stale), ""]
     out += ["## 보유 — 요약", "",
-            "| 자산 | 시장 | 포지션 | 신호 | 액션 | 수급 | 전망 |",
-            "|------|------|--------|------|------|------|------|", *rows, "",
+            "| 자산 | 시장 | 수량 | 포지션 | 신호 | 액션 | 수급 | 전망 |",
+            "|------|------|------|--------|------|------|------|------|", *rows, "",
             "## 보유 — 상세", "", *details]
 
     # 워치리스트(미보유 매수 후보) — 진입 신호 감시
@@ -130,8 +132,9 @@ def build_report(base_dir: Path, today: date | None = None) -> str:
     from .journal import load_journal, journal_summary
 
     entries = load_journal(base_dir)
-    if entries:
-        recent = sorted(entries, key=lambda e: e.date, reverse=True)[:6]
+    trades = [e for e in entries if e.action != "보유등록"]  # 기초 보유등록은 매매 아님
+    if trades:
+        recent = sorted(trades, key=lambda e: e.date, reverse=True)[:6]
         out += ["", "## 매매 일지 — 최근 내역", "",
                 "| 일자 | 태그 | 액션 | 종목 | 근거 |",
                 "|------|------|------|------|------|"]
