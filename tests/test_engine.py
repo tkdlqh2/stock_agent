@@ -28,6 +28,13 @@ def test_new_high_classification():
     assert classify_position(df) == ChartPosition.NEW_HIGH
 
 
+def test_downtrend_bottom_is_low_not_high():
+    # 하락추세 바닥(레인지 하단) — 위에 매물대가 있어도 '저점권'이어야 한다.
+    # (실데이터 금 ETF가 '고점권'으로 오판된 버그 회귀 테스트)
+    df = make_ohlcv(list(np.linspace(200, 100, 130)))
+    assert classify_position(df) == ChartPosition.LOW
+
+
 # --- 수급 패턴 (6장) ---
 
 def test_supply_rocket():
