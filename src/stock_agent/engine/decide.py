@@ -89,10 +89,18 @@ def decide(
         supply_status = "present"
 
     pattern = classify_supply(supply) if supply_status == "present" else classify_supply(pd.DataFrame())
-    if sig.needs_supply_confirm:
-        confirmed = confirms_breakout(supply) if supply_status == "present" else False
-    else:
+    if not sig.needs_supply_confirm:
         confirmed = True  # 확증 불필요 신호(4-1/4-4)
+    elif supply_status == "present":
+        confirmed = confirms_breakout(supply)
+    elif supply_status == "na":
+        # 수급 개념이 없는 시장(미국 등): 4-2/4-3 돌파·반등에 '거래량 폭발'이
+        # 동반되면 거래량을 확증으로 본다(수급은 한국 레이어, 거래량은 보편).
+        from ..indicators.volume import volume_spike
+
+        confirmed = volume_spike(ohlcv["volume"], lookback=20, mult=2.0)
+    else:  # missing — 수급 가능 시장인데 데이터 못 받음
+        confirmed = False
 
     # 4) 큰 프레임 우선: 4-1 은 주/월봉 다이버전스가 있으면 신호 '발효'로 격상.
     effective_triggered = sig.triggered
@@ -126,7 +134,10 @@ def decide(
         elif supply_status == "present":
             v.reasons.append("⚠ 수급 미확증 — 거래량 없는 돌파/반등(보류)")
         elif supply_status == "na":
-            v.reasons.append("수급 N/A(해당 시장 미적용) — 확증 생략, 차트 기준 보류")
+            if confirmed:
+                v.reasons.append("거래량 확증(수급 N/A 시장 — 거래량 폭발로 대체)")
+            else:
+                v.reasons.append("수급 N/A + 거래량 부족 — 확증 불가(보류)")
         else:  # missing
             v.reasons.append("수급 미수신(데이터 없음) — 확증 불가, 보류")
 

@@ -113,6 +113,32 @@ def test_weekly_divergence_escalates_4_1_to_partial_sell():
     assert any("주봉" in r for r in v_with_weekly.reasons)
 
 
+def test_us_breakout_confirmed_by_volume():
+    # 미국(supply=None): 고점권 돌파에 거래량 폭발이 동반되면 수급 없이도 거래량으로 확증.
+    np.random.seed(0)
+    p = (list(np.linspace(100, 180, 20)) + list(np.linspace(180, 150, 15))
+         + list(150 + np.random.uniform(-2, 2, 65)) + list(np.linspace(150, 165, 30)))
+    vol = [300.0] * 35 + [3000.0] * 65 + [800.0] * 29 + [20000.0]
+    df = make_ohlcv(p, vol)
+    v = decide("X", df, supply=None)
+    assert v.position == ChartPosition.HIGH      # 고점권 → 4-2(확증 필요)
+    assert v.confirmed is True                    # 거래량 폭발로 확증
+    assert any("거래량 확증" in r for r in v.reasons)
+
+
+def test_us_no_volume_not_confirmed():
+    # 미국 + 확증 필요 신호인데 거래량 폭발이 없으면 확증 불가(보류).
+    np.random.seed(0)
+    p = (list(np.linspace(100, 180, 20)) + list(np.linspace(180, 150, 15))
+         + list(150 + np.random.uniform(-2, 2, 65)) + list(np.linspace(150, 165, 30)))
+    vol = [300.0] * 35 + [3000.0] * 65 + [800.0] * 30  # 마지막 봉 거래량 폭발 없음
+    df = make_ohlcv(p, vol)
+    v = decide("X", df, supply=None)
+    if v.signal == SignalCode.S4_2:  # 같은 포지션일 때만 의미
+        assert v.confirmed is False
+        assert any("거래량 부족" in r for r in v.reasons)
+
+
 def test_quant_alerts_surface():
     df = make_ohlcv(list(np.linspace(100, 200, 130)))
     v = decide("005930", df, fundamentals=Fundamentals(fcf_positive=False, roic_gt_wacc=False))
