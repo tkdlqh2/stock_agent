@@ -48,6 +48,7 @@ def decide(
     *,
     weekly_ohlcv: pd.DataFrame | None = None,
     monthly_ohlcv: pd.DataFrame | None = None,
+    asset_kind: str = "stock",
 ) -> Verdict:
     """종목 1개에 대한 의사결정.
 
@@ -55,6 +56,8 @@ def decide(
     weekly_ohlcv/monthly_ohlcv: 주봉·월봉(선택). 명세서상 다이버전스는 **큰 프레임 우선**이라,
       4-1 에서 주/월봉 하락 다이버전스가 있으면 일봉이 아니어도 신호를 '발효'로 본다
       (→ 일부매도 30%). 월봉 > 주봉 > 일봉 순으로 강한 신호로 취급한다.
+    asset_kind: stock/etf/commodity. 수급 N/A(미국) 시장의 4-2/4-3 확증 방식이 갈린다 —
+      단일주는 '거래량 폭발', ETF/원자재는 '지속 돌파'(ETF 자체 거래량은 노이즈가 커서).
     """
     fund = fundamentals or Fundamentals()
 
@@ -94,11 +97,18 @@ def decide(
     elif supply_status == "present":
         confirmed = confirms_breakout(supply)
     elif supply_status == "na":
-        # 수급 개념이 없는 시장(미국 등): 4-2/4-3 돌파·반등에 '거래량 폭발'이
-        # 동반되면 거래량을 확증으로 본다(수급은 한국 레이어, 거래량은 보편).
-        from ..indicators.volume import volume_spike
+        # 수급 개념이 없는 시장(미국 등)의 4-2/4-3 확증:
+        #  - 단일주: '거래량 폭발'(개별주 거래량은 매수 압력 직접 반영)
+        #  - ETF/원자재: '지속 돌파'(ETF 자체 거래량은 차익거래·창설/환매 노이즈가 커
+        #    확신 신호로 약함 → 며칠 종가 유지로 가짜 돌파를 거른다)
+        if asset_kind in ("etf", "commodity"):
+            from ..indicators.trend import breakout_sustained
 
-        confirmed = volume_spike(ohlcv["volume"], lookback=20, mult=2.0)
+            confirmed = breakout_sustained(ohlcv["close"], days=3)
+        else:
+            from ..indicators.volume import volume_spike
+
+            confirmed = volume_spike(ohlcv["volume"], lookback=20, mult=2.0)
     else:  # missing — 수급 가능 시장인데 데이터 못 받음
         confirmed = False
 
@@ -134,8 +144,13 @@ def decide(
         elif supply_status == "present":
             v.reasons.append("⚠ 수급 미확증 — 거래량 없는 돌파/반등(보류)")
         elif supply_status == "na":
-            if confirmed:
+            etf_like = asset_kind in ("etf", "commodity")
+            if confirmed and etf_like:
+                v.reasons.append("지속 돌파 확증(ETF — 최근 종가 유지)")
+            elif confirmed:
                 v.reasons.append("거래량 확증(수급 N/A 시장 — 거래량 폭발로 대체)")
+            elif etf_like:
+                v.reasons.append("지속 돌파 미확인 — 보류(ETF 거래량은 노이즈라 추세 유지로 확증)")
             else:
                 v.reasons.append("수급 N/A + 거래량 부족 — 확증 불가(보류)")
         else:  # missing

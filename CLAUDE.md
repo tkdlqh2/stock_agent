@@ -40,7 +40,7 @@ py -m venv .venv
 - `journal_import.py` — 미래에셋 CSV 3종 임포트(cp949/utf-8 자동, `_norm_row`로 초과컬럼 견고). `import_miraeasset_csv`(거래내역: 종목번호=티커·손익 자동) / `import_miraeasset_chegyul_csv`(체결내역: 종목명만→name_map·날짜 인자 필요) / `import_miraeasset_balance_csv`(잔고→holdings+usd_cash). **수동**(`enrich_entry`): 태그·근거·당시 국면(=사람 판단). 미래에셋은 API 없어 CSV가 현실적 경로(*.csv는 gitignore).
 - `mcp_server.py` — FastMCP 스텁(`analyze_ticker`/`get_ohlcv`/`get_supply`/`analyze_portfolio`). 캐시 위치는 `STOCK_AGENT_HOME`(없으면 프로젝트 루트).
 
-`decide()`의 수급 상태 3구분: `supply=None`→**N/A(미국 등)** / 빈 DataFrame→**미수신(예: KRX 로그인 없음)** / 데이터 있음→확증 판정. 셋 다 4-2/4-3은 보류로 강등하되 근거 메시지가 다르다.
+`decide()`의 수급 상태 3구분: `supply=None`→**N/A(미국 등)** / 빈 DataFrame→**미수신(예: KRX 로그인 없음)** / 데이터 있음→확증 판정. N/A 시장의 4-2/4-3 확증은 `asset_kind`로 갈린다 — **단일주=거래량 폭발**, **ETF/원자재=지속 돌파**(`breakout_sustained`, ETF 자체 거래량은 차익거래·창설/환매 노이즈가 커 확신 신호로 약함). 한국은 ETF도 수급(투자자별)이 더 나은 확증이라 그대로 사용.
 
 핵심 불변식: `decide()`는 ①전량매도 오버라이드를 신호 흐름보다 먼저 확인, ②4-2/4-3 돌파·반등은 `confirms_breakout`(외인 매수 또는 외인+기관 누적 우상향) 없이는 추격매수로 가지 않음(보류), ③`Fundamentals`(시나리오·훼손)는 사람 입력 — 자동 판정 금지.
 

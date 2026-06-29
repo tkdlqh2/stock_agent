@@ -133,6 +133,20 @@ def test_us_breakout_confirmed_by_volume():
     assert any("거래량 확증" in r for r in v.reasons)
 
 
+def test_etf_confirmed_by_sustained_breakout_not_volume():
+    # 미국 ETF: 거래량이 평탄(폭발 없음)이어도 '지속 돌파'(상승 추종)면 확증.
+    # 같은 데이터에서 단일주는 거래량 부족으로 미확증 → asset_kind 분기 검증.
+    np.random.seed(0)
+    p = (list(np.linspace(100, 180, 20)) + list(np.linspace(180, 150, 15))
+         + list(150 + np.random.uniform(-2, 2, 65)) + list(np.linspace(150, 165, 30)))
+    df = make_ohlcv(p, [1000.0] * 130)  # 거래량 평탄(스파이크 없음)
+    v_etf = decide("X", df, supply=None, asset_kind="etf")
+    v_stock = decide("X", df, supply=None, asset_kind="stock")
+    assert v_etf.confirmed is True
+    assert any("지속 돌파 확증" in r for r in v_etf.reasons)
+    assert v_stock.confirmed is False  # 단일주는 거래량 폭발 없어 미확증
+
+
 def test_us_no_volume_not_confirmed():
     # 미국 + 확증 필요 신호인데 거래량 폭발이 없으면 확증 불가(보류).
     np.random.seed(0)

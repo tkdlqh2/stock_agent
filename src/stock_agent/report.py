@@ -48,8 +48,9 @@ def analyze_holding(ticker: str, market: str, brief: FundamentalBrief | None,
     monthly = prov.ohlcv(ticker, start, end, freq="month")
     supply = None if market == "us" else prov.supply(ticker, start, end)
     hint = brief.to_fundamentals_hint() if brief else None
+    kind = brief.asset_kind if brief else "stock"
     v = decide(ticker, daily, supply=supply, fundamentals=hint,
-               weekly_ohlcv=weekly, monthly_ohlcv=monthly)
+               weekly_ohlcv=weekly, monthly_ohlcv=monthly, asset_kind=kind)
     return {
         "ticker": ticker,
         "market": market,

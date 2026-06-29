@@ -77,6 +77,20 @@ def golden_cross(
     return bool(crossed_up and anchor_rising)
 
 
+def breakout_sustained(close: pd.Series, days: int = 3) -> bool:
+    """돌파·반등이 '유지'되는가 — 최근 days봉이 상승 추종(1봉 가짜 돌파 거름).
+
+    ETF는 자체 거래량이 차익거래·창설/환매 노이즈가 커서 '거래량 폭발'이 확신 신호로
+    약하다. 대신 '며칠 연속 종가가 버티며 올라가는지'로 가짜 돌파를 거른다.
+    마지막 종가가 days봉 전보다 높고, 최근 변화의 대부분이 비하락일 때 True.
+    """
+    seg = close.iloc[-(days + 1):]
+    if len(seg) < days + 1:
+        return False
+    diffs = seg.diff().dropna()
+    return bool(seg.iloc[-1] > seg.iloc[0] and (diffs >= 0).sum() >= days - 1)
+
+
 def ma_stack(close: pd.Series) -> dict[str, float]:
     """현재 20/60/120 SMA 값 (NaN 가능)."""
     return {
