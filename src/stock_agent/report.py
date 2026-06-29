@@ -197,11 +197,12 @@ def main() -> None:  # pragma: no cover - 런타임 진입점
     """`python -m stock_agent.report [base_dir]` — 캐시 브리핑 + 라이브 차트로 리포트 생성."""
     import sys
 
+    from .config import report_dir
+
     base_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
     today = date.today()
     report = build_report(base_dir, today)
-    dest = base_dir / "reports" / f"포트폴리오_리포트_{today}.md"
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest = report_dir(base_dir) / f"{today} 포트폴리오 리포트.md"
     dest.write_text(report, encoding="utf-8")
     print(f"리포트 저장: {dest}")
 

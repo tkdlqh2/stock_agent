@@ -124,6 +124,8 @@ def render_journal(base_dir: Path, entries: list[TradeEntry] | None = None) -> P
         if e.note:
             lines.append(f"- 메모: {e.note}")
         lines.append("")
-    path = base_dir / "매매일지.md"
+    from .config import journal_path
+
+    path = journal_path(base_dir)
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
