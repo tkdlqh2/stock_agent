@@ -47,6 +47,14 @@ def classify_supply(supply: pd.DataFrame, window: int = 20) -> SupplyPattern:
     return SupplyPattern.NEUTRAL
 
 
+def foreign_buying(supply: pd.DataFrame, window: int = 20) -> bool:
+    """외국인 순매수(+) 여부. ETF는 기관 라인에 유동성공급자(LP, 국내 금융투자) 잡음이
+    섞여서, 외국인 순매수가 더 깨끗한 확신 신호다(외국인은 LP가 아님)."""
+    if supply is None or supply.empty or "foreign" not in supply.columns:
+        return False
+    return bool(supply["foreign"].tail(window).sum() > 0)
+
+
 def confirms_breakout(supply: pd.DataFrame, window: int = 20) -> bool:
     """4-2/4-3 확증 조건: 외국인 매수 또는 누적 순매수(외인+기관) 우상향."""
     if supply is None or supply.empty:

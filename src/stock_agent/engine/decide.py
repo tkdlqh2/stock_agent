@@ -12,9 +12,11 @@ from __future__ import annotations
 import pandas as pd
 
 from ..models import Action, ChartPosition, SignalCode, Verdict
+from ..indicators.trend import breakout_sustained
+from ..indicators.volume import volume_spike
 from .stage3_position import classify_position
 from .stage4_signal import evaluate_signal
-from .supply_demand import classify_supply, confirms_breakout
+from .supply_demand import classify_supply, confirms_breakout, foreign_buying
 from .sell_rules import Fundamentals, full_exit_override
 
 
@@ -92,25 +94,42 @@ def decide(
         supply_status = "present"
 
     pattern = classify_supply(supply) if supply_status == "present" else classify_supply(pd.DataFrame())
+    etf_like = asset_kind in ("etf", "commodity")
+    sustained = breakout_sustained(ohlcv["close"], days=3)
+    confirm_note: str | None = None
+
+    # 자산·시장별로 가장 깨끗한 확증 수단을 고른다 (가짜 돌파/반등 거르기).
     if not sig.needs_supply_confirm:
         confirmed = True  # 확증 불필요 신호(4-1/4-4)
     elif supply_status == "present":
-        confirmed = confirms_breakout(supply)
+        if etf_like:
+            # 한국 ETF: '기관' 라인엔 LP(유동성공급자) 잡음 → 외국인 순매수 중심 +
+            # 지속 돌파 크로스체크. (기관 단독 신호가 LP 잡음인지 가격으로 교차검증)
+            fb = foreign_buying(supply)
+            confirmed = fb or sustained
+            if fb:
+                confirm_note = f"수급 확증(외국인 순매수, {pattern.value})"
+            elif sustained:
+                confirm_note = "지속 돌파 확증(ETF — 외국인 약하나 가격 유지)"
+            else:
+                confirm_note = "보류 — 외국인 약함+지속 돌파 미확인(ETF 기관은 LP 잡음 가능)"
+        else:  # 한국 단일주: 수급(외인/기관) 그대로
+            confirmed = confirms_breakout(supply)
+            confirm_note = (f"수급 확증({pattern.value})" if confirmed
+                            else "⚠ 수급 미확증 — 거래량 없는 돌파/반등(보류)")
     elif supply_status == "na":
-        # 수급 개념이 없는 시장(미국 등)의 4-2/4-3 확증:
-        #  - 단일주: '거래량 폭발'(개별주 거래량은 매수 압력 직접 반영)
-        #  - ETF/원자재: '지속 돌파'(ETF 자체 거래량은 차익거래·창설/환매 노이즈가 커
-        #    확신 신호로 약함 → 며칠 종가 유지로 가짜 돌파를 거른다)
-        if asset_kind in ("etf", "commodity"):
-            from ..indicators.trend import breakout_sustained
-
-            confirmed = breakout_sustained(ohlcv["close"], days=3)
+        # 미국 등 수급 N/A: 단일주=거래량 폭발 / ETF·원자재=지속 돌파(자체 거래량 노이즈).
+        if etf_like:
+            confirmed = sustained
+            confirm_note = ("지속 돌파 확증(ETF — 최근 종가 유지)" if confirmed
+                            else "지속 돌파 미확인 — 보류(ETF 거래량은 노이즈)")
         else:
-            from ..indicators.volume import volume_spike
-
             confirmed = volume_spike(ohlcv["volume"], lookback=20, mult=2.0)
+            confirm_note = ("거래량 확증(수급 N/A 시장 — 거래량 폭발로 대체)" if confirmed
+                            else "수급 N/A + 거래량 부족 — 확증 불가(보류)")
     else:  # missing — 수급 가능 시장인데 데이터 못 받음
         confirmed = False
+        confirm_note = "수급 미수신(데이터 없음) — 확증 불가, 보류"
 
     # 4) 큰 프레임 우선: 4-1 은 주/월봉 다이버전스가 있으면 신호 '발효'로 격상.
     effective_triggered = sig.triggered
@@ -138,23 +157,8 @@ def decide(
     )
     v.reasons.extend(sig.reasons)
     v.reasons.extend(timeframe_reasons)
-    if sig.needs_supply_confirm:
-        if supply_status == "present" and confirmed:
-            v.reasons.append(f"수급 확증({pattern.value})")
-        elif supply_status == "present":
-            v.reasons.append("⚠ 수급 미확증 — 거래량 없는 돌파/반등(보류)")
-        elif supply_status == "na":
-            etf_like = asset_kind in ("etf", "commodity")
-            if confirmed and etf_like:
-                v.reasons.append("지속 돌파 확증(ETF — 최근 종가 유지)")
-            elif confirmed:
-                v.reasons.append("거래량 확증(수급 N/A 시장 — 거래량 폭발로 대체)")
-            elif etf_like:
-                v.reasons.append("지속 돌파 미확인 — 보류(ETF 거래량은 노이즈라 추세 유지로 확증)")
-            else:
-                v.reasons.append("수급 N/A + 거래량 부족 — 확증 불가(보류)")
-        else:  # missing
-            v.reasons.append("수급 미수신(데이터 없음) — 확증 불가, 보류")
+    if sig.needs_supply_confirm and confirm_note:
+        v.reasons.append(confirm_note)
 
     # 경보: 정량 펀더멘털 훼손 감시
     v.alerts.extend(fund.quant_alerts())

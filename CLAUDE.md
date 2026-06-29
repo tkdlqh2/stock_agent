@@ -40,7 +40,12 @@ py -m venv .venv
 - `journal_import.py` — 미래에셋 CSV 3종 임포트(cp949/utf-8 자동, `_norm_row`로 초과컬럼 견고). `import_miraeasset_csv`(거래내역: 종목번호=티커·손익 자동) / `import_miraeasset_chegyul_csv`(체결내역: 종목명만→name_map·날짜 인자 필요) / `import_miraeasset_balance_csv`(잔고→holdings+usd_cash). **수동**(`enrich_entry`): 태그·근거·당시 국면(=사람 판단). 미래에셋은 API 없어 CSV가 현실적 경로(*.csv는 gitignore).
 - `mcp_server.py` — FastMCP 스텁(`analyze_ticker`/`get_ohlcv`/`get_supply`/`analyze_portfolio`). 캐시 위치는 `STOCK_AGENT_HOME`(없으면 프로젝트 루트).
 
-`decide()`의 수급 상태 3구분: `supply=None`→**N/A(미국 등)** / 빈 DataFrame→**미수신(예: KRX 로그인 없음)** / 데이터 있음→확증 판정. N/A 시장의 4-2/4-3 확증은 `asset_kind`로 갈린다 — **단일주=거래량 폭발**, **ETF/원자재=지속 돌파**(`breakout_sustained`, ETF 자체 거래량은 차익거래·창설/환매 노이즈가 커 확신 신호로 약함). 한국은 ETF도 수급(투자자별)이 더 나은 확증이라 그대로 사용.
+`decide()`의 수급 상태 3구분: `supply=None`→**N/A(미국 등)** / 빈 DataFrame→**미수신(예: KRX 로그인 없음)** / 데이터 있음→확증 판정. 4-2/4-3 확증 수단은 자산·시장별로 가장 깨끗한 걸 쓴다(가짜 돌파/반등 거르기):
+- **한국 단일주**: `confirms_breakout`(외인 매수 또는 외인+기관 우상향).
+- **한국 ETF/원자재**: 외국인 순매수(`foreign_buying`) 중심 **+ 지속 돌파**(`breakout_sustained`) 크로스체크. ETF '기관' 라인엔 LP(유동성공급자=국내 금융투자) 잡음이 섞여, 기관 단독 신호는 외국인/가격으로 교차검증해야 한다.
+- **미국 단일주**: 거래량 폭발(`volume_spike`).
+- **미국 ETF/원자재**: 지속 돌파(ETF 자체 거래량은 차익거래·창설/환매 노이즈가 커 약함).
+확증 수단별 근거 메시지(`confirm_note`)가 다르다.
 
 핵심 불변식: `decide()`는 ①전량매도 오버라이드를 신호 흐름보다 먼저 확인, ②4-2/4-3 돌파·반등은 `confirms_breakout`(외인 매수 또는 외인+기관 누적 우상향) 없이는 추격매수로 가지 않음(보류), ③`Fundamentals`(시나리오·훼손)는 사람 입력 — 자동 판정 금지.
 

@@ -147,6 +147,22 @@ def test_etf_confirmed_by_sustained_breakout_not_volume():
     assert v_stock.confirmed is False  # 단일주는 거래량 폭발 없어 미확증
 
 
+def test_kr_etf_foreign_centric_confirmation():
+    # 한국 ETF: '기관' 라인은 LP 잡음 가능 → 외국인 순매수 중심 + 지속 돌파 크로스체크.
+    np.random.seed(0)
+    p = (list(np.linspace(100, 180, 20)) + list(np.linspace(180, 150, 15))
+         + list(150 + np.random.uniform(-2, 2, 65)) + list(np.linspace(150, 165, 30)))
+    df = make_ohlcv(p, [1000.0] * 130)  # 가격은 지속 돌파(sustained=True)
+    idx = pd.date_range("2024-01-01", periods=20, freq="D")
+    f_buy = pd.DataFrame({"foreign": [1e8]*20, "institution": [-1e7]*20, "individual": [-9e7]*20}, index=idx)
+    f_sell = pd.DataFrame({"foreign": [-1e8]*20, "institution": [1e8]*20, "individual": [1e7]*20}, index=idx)
+    v_fbuy = decide("X", df, supply=f_buy, asset_kind="etf")
+    v_fsell = decide("X", df, supply=f_sell, asset_kind="etf")
+    assert v_fbuy.confirmed and any("외국인 순매수" in r for r in v_fbuy.reasons)
+    # 외국인 약해도(기관만 매수) 가격이 버티면 지속 돌파로 확증
+    assert v_fsell.confirmed and any("외국인 약하나 가격 유지" in r for r in v_fsell.reasons)
+
+
 def test_us_no_volume_not_confirmed():
     # 미국 + 확증 필요 신호인데 거래량 폭발이 없으면 확증 불가(보류).
     np.random.seed(0)
