@@ -35,6 +35,13 @@ def test_downtrend_bottom_is_low_not_high():
     assert classify_position(df) == ChartPosition.LOW
 
 
+def test_uptrend_top_is_high_not_low():
+    # 상승 후 레인지 상단(고점권) — 아래에 지지가 있어도 '저점권'으로 오판 금지.
+    # (실데이터 IGF가 80% 위치인데 '저점권'으로 오판된 버그 회귀 테스트)
+    df = make_ohlcv(list(np.linspace(50, 68, 120)) + [67, 66, 67.5])
+    assert classify_position(df) == ChartPosition.HIGH
+
+
 # --- 수급 패턴 (6장) ---
 
 def test_supply_rocket():
