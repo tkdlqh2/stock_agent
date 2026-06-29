@@ -26,6 +26,15 @@ def _read_text(path: Path) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _norm_row(row: dict) -> dict:
+    """헤더보다 값이 많아 생기는 None 키/리스트 값을 안전하게 거른다."""
+    return {
+        k.strip(): (v.strip() if isinstance(v, str) else "")
+        for k, v in row.items()
+        if isinstance(k, str)
+    }
+
+
 def _num(s: str | None) -> float:
     if not s:
         return 0.0
@@ -41,7 +50,7 @@ def import_miraeasset_csv(path: str | Path) -> list[TradeEntry]:
     reader = csv.DictReader(io.StringIO(text))
     out: list[TradeEntry] = []
     for row in reader:
-        r = {(k or "").strip().replace(" ", ""): (v or "").strip() for k, v in row.items()}
+        r = {k.replace(" ", ""): v for k, v in _norm_row(row).items()}
         date = r.get("매매일")
         ticker = r.get("종목번호")
         if not date or not ticker:  # 빈 줄/꼬리 스킵
@@ -65,6 +74,55 @@ def import_miraeasset_csv(path: str | Path) -> list[TradeEntry]:
             action=action, shares=shares, price=price, note=note,
         ))
     return out
+
+
+def import_miraeasset_chegyul_csv(
+    path: str | Path, name_map: dict[str, str], date: str
+) -> list[TradeEntry]:
+    """미래에셋 '체결내역' CSV → TradeEntry. 이 양식은 종목명만 있어 name_map 필요,
+    날짜 컬럼이 없어 date(파일 기준일)를 인자로 받는다. tag/rationale 미설정."""
+    text = _read_text(Path(path))
+    reader = csv.DictReader(io.StringIO(text))
+    out: list[TradeEntry] = []
+    for row in reader:
+        r = _norm_row(row)
+        gubun, nm = r.get("매매구분"), r.get("종목명")
+        qty = _num(r.get("체결량"))
+        if not gubun or not nm or qty <= 0:
+            continue
+        action = "매도" if "매도" in gubun else "매수"
+        out.append(TradeEntry(
+            date=date, ticker=name_map.get(nm, nm), name=nm,
+            action=action, shares=qty, price=_num(r.get("체결가")),
+            note=f"체결금액 {r.get('체결금액','-')} ({gubun}, {r.get('주문시각','')})",
+        ))
+    return out
+
+
+def import_miraeasset_balance_csv(
+    path: str | Path, name_map: dict[str, str]
+) -> tuple[list[dict], float]:
+    """미래에셋 '잔고' CSV → (holdings, usd_cash). holdings=[{ticker,market,shares,avg_price}].
+    유형: 주식→kr / 해외주식→us / 외화(미국달러)→usd_cash."""
+    text = _read_text(Path(path))
+    reader = csv.DictReader(io.StringIO(text))
+    holdings: list[dict] = []
+    usd_cash = 0.0
+    for row in reader:
+        r = _norm_row(row)
+        typ, nm = r.get("유형"), r.get("종목명")
+        if not typ or not nm:
+            continue
+        if typ == "외화":  # 미국달러 등 외화 예수금
+            usd_cash = _num(r.get("보유량"))
+            continue
+        holdings.append({
+            "ticker": name_map.get(nm, nm),
+            "market": "kr" if typ == "주식" else "us",
+            "shares": _num(r.get("보유량")),
+            "avg_price": _num(r.get("평균단가")),
+        })
+    return holdings, usd_cash
 
 
 def enrich_entry(entry: TradeEntry, *, tag: str, rationale: str,
